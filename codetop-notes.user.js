@@ -13,12 +13,11 @@
 
     // 工具函数：插入自定义按钮
     function insertCustomNoteButtons() {
-        // 获取所有表格行的“笔记”按钮
-        const noteButtons = document.querySelectorAll('td.el-table_1_column_6 > div > button:nth-child(2) > span');
-        noteButtons.forEach(span => {
-            // 获取“笔记”按钮
+        // 兼容所有“笔记”按钮（无论列号、class如何变化）
+        const noteSpans = Array.from(document.querySelectorAll('table tr td .el-button > span'))
+            .filter(span => span.textContent.trim() === '笔记');
+        noteSpans.forEach(span => {
             const noteBtn = span.parentElement;
-            // 获取按钮容器（通常是 <div>，包含多个按钮）
             const btnGroup = noteBtn.parentElement;
             // 避免重复插入
             if (btnGroup.querySelector('.ctn-custom-note-btn')) {
@@ -41,10 +40,13 @@
             btn.className = noteBtn.className + ' ctn-custom-note-btn';
             btn.style.marginLeft = '6px';
             btn.innerHTML = '📝';
+            btn.style.maxWidth = '40px';
+            btn.style.padding = '0 8px';
+            btn.style.fontSize = '16px';
+            btn.style.whiteSpace = 'nowrap';
+            btn.style.height = noteBtn.offsetHeight + 'px';
             btn.title = '自定义笔记';
-            // 添加点击事件，弹出浮层
             btn.addEventListener('click', showCustomNoteModal);
-            // 插入到“笔记”按钮后面
             btnGroup.insertBefore(btn, noteBtn.nextSibling);
             // 优化：如果该题存在笔记，按钮显示绿色
             let tr = btn;
@@ -130,31 +132,56 @@
     }
 
     // 更新按钮状态的工具函数
+    // ... existing code ...
     function updateButtonState(btn, content) {
         if (content && content.trim()) {
-            btn.style.background = '#67c23a';
+            btn.style.background = '#e6a23c'; // 有内容时橙色
             btn.style.color = '#fff';
-            btn.style.borderColor = '#67c23a';
+            btn.style.borderColor = '#e6a23c';
         } else {
-            // 恢复默认状态
-            btn.style.background = '';
-            btn.style.color = '';
-            btn.style.borderColor = '';
+            // 默认灰色
+            btn.style.background = '#909399';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#909399';
         }
     }
+    // ... existing code ...
 
-    // 获取当前行的题目链接 href 作为 key（第1列）
+    // 获取当前行的题目唯一 key
     function getRowKeyFromBtn(btn) {
-        // 找到当前按钮所在的 tr
         let tr = btn;
         while (tr && tr.tagName !== 'TR') tr = tr.parentElement;
-        if (!tr) return '';
-        // 直接找第1列的 a 标签
-        const firstTd = tr.querySelector('td.el-table_1_column_1');
-        if (!firstTd) return '';
-        const a = firstTd.querySelector('a');
-        if (a && a.href) return a.href;
-        return a ? a.textContent.trim() : '';
+        if (!tr) {
+            console.warn('[getRowKeyFromBtn] 没找到tr', btn);
+            return '';
+        }
+
+        // 优先用 tr 的 data-row-key 或 data-id
+        if (tr.dataset && (tr.dataset.rowKey || tr.dataset.id)) {
+            return tr.dataset.rowKey || tr.dataset.id;
+        }
+
+        // 依次检查前两个td，优先用a标签href
+        const tds = tr.querySelectorAll('td');
+        for (let i = 0; i < Math.min(2, tds.length); i++) {
+            const a = tds[i].querySelector('a');
+            if (a && a.href) {
+                return a.href;
+            }
+        }
+        // 如果没有a标签，再用前两个td的文本
+        for (let i = 0; i < Math.min(2, tds.length); i++) {
+            const text = tds[i].textContent.trim();
+            if (text) {
+                return `${tr.rowIndex || ''}_${text}`;
+            }
+        }
+        // 兜底：用整行文本+行号
+        const key = `${tr.rowIndex || ''}_${tr.textContent.trim()}`;
+        if (!key) {
+            console.warn('[getRowKeyFromBtn] key生成失败', tr);
+        }
+        return key;
     }
 
     // 简单浮层（Modal）实现
